@@ -16,11 +16,29 @@
 ```python
 from relation_theory import RelationSchema
 
-# 创建函数依赖
-rs = RelationSchema.from_str("ABCD", ["A->B", "BC->D"])
+rs = RelationSchema.from_str("ABCDE", ["A->C", "BC->D", "D->B", "C->E"])
+print(rs)
 keys = rs.candidate_keys()  # 获取候选键
+print("Candidate Keys:", keys)
 level, violations = rs.judge_NF()  # 判断范式等级
+print("Normal Form Level:", level)
+print("Violations:", violations)
 
-sub_schemas = [{"A", "B"}, {"B", "C", "D"}]
+sub_schemas = [{"B", "C", "D"}, {"A", "C", "E"}]
+is_fd_preserving = rs.is_fd_preserving_decomposition(sub_schemas)  # 判断保持函数依赖分解
 is_lossless = rs.is_lossless_decomposition(sub_schemas)  # 判断无损分解
+
+print("Is FD Preserving Decomposition:", is_fd_preserving)
+print("Is Lossless Decomposition:", is_lossless)
+
+# 分解 ρ 保持函数依赖
+rs_3NF = rs.decompose_into_3NF()
+print("3NF Decomposition:", rs_3NF)
+
+is_fd_preserving_3NF = rs.is_fd_preserving_decomposition(rs_3NF)
+is_lossless_3NF = rs.is_lossless_decomposition(rs_3NF)
+
+print("Is 3NF Decomposition FD Preserving:", is_fd_preserving_3NF)
+print("Is 3NF Decomposition Lossless:", is_lossless_3NF)
+
 ```

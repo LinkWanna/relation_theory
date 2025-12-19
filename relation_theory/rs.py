@@ -123,9 +123,12 @@ class RelationSchema:
         for fd in atomic_fds:
             # 存在违反 BCNF 需要满足：
             # fd.lhs 不是超码（即不包含任何候选码）
-            if all(not fd.lhs >= key for key in candidate_keys):
-                # 存在违反 BCNF 的 FD
-                violations.append(f"Violation: {''.join(sorted(fd.lhs))} -> {''.join(sorted(fd.rhs))} violates BCNF")
+            for key in candidate_keys:
+                if fd.lhs < key:
+                    # 存在违反 BCNF 的 FD
+                    violations.append(
+                        f"Violation: {''.join(sorted(fd.lhs))} -> {''.join(sorted(fd.rhs))} violates BCNF on key {''.join(sorted(key))}"
+                    )
 
         return violations
 
@@ -162,6 +165,58 @@ class RelationSchema:
 
         return False
 
+    def is_fd_preserving_decomposition(self, sub_schemas: list[set[str]]) -> bool:
+        """
+        分解为保持函数依赖的分解
+        <=> F+ = πR1​(F)+ ∪ πR2​(F)+ ∪ ... ∪ πRn​(F)+
+        """
+        # 计算原始 FDSet 的闭包
+        original_closure = set()
+        for fd in self.fd_set.fds:
+            original_closure.add(fd)
+
+        # 计算每个子模式的投影 FDSet 的闭包
+        projected_closure = set()
+        for sub_schema in sub_schemas:
+            # 计算子模式的投影 FDSet
+            projected_fdset = [fd for fd in self.fd_set.fds if sub_schema >= fd.lhs and sub_schema >= fd.rhs]
+            for fd in projected_fdset:  # 将投影 FD 加入闭包
+                projected_closure.add(fd)
+
+        # 检查是否保持函数依赖
+        return original_closure == projected_closure
+
+    def decompose_into_3NF(self) -> list[set[str]]:
+        """
+        将当前的关系模式分解为 3NF 子模式的集合
+        参考算法：
+        1. 计算最小函数依赖集（最小覆盖）G。
+        2. 对 G 中的每个函数依赖 X→A，创建一个子模式 R_i = X ∪ A。
+        3. 如果没有子模式包含某个候选码 K，则添加一个子模式 R_k = K。
+        4. 返回所有子模式的集合。
+        """
+        # 1. 计算最小覆盖（最小函数依赖集）
+        minimal_cover = self.fd_set.canonical_cover()
+
+        # 2. 根据最小覆盖生成子模式
+        sub_schemas: list[set[str]] = []
+        for fd in minimal_cover.fds:
+            sub_schemas.append(set(fd.lhs | fd.rhs))
+
+        # 3. 如果没有子模式包含某个候选码，则添加一个包含候选码的子模式
+        candidate_keys = self.candidate_keys()
+        contains_key = any(any(key <= schema for schema in sub_schemas) for key in candidate_keys)
+        if not contains_key and candidate_keys:
+            sub_schemas.append(set(candidate_keys[0]))
+
+        # 4. 去重并返回
+        unique_schemas: list[set[str]] = []
+        for schema in sub_schemas:
+            if schema not in unique_schemas:
+                unique_schemas.append(schema)
+
+        return unique_schemas
+
     @classmethod
     def from_str(cls, attributes: str, fd_list: list[str]) -> "RelationSchema":
         """便捷构造：R('ABCD', ['A->B', 'BC->D'])"""
@@ -182,4 +237,4 @@ class RelationSchema:
         return cls(attr_set, FDSet(fds))
 
     def __repr__(self):
-        return f"R({''.join(sorted(self.attributes))}), F = {{{', '.join(map(str, self.fd_set.fds))}}}"
+        return f"R({''.join(sorted(self.attributes))}), F = {{{', '.join(map(str, self.fd_set.fds))}}}"  # ty: ignore

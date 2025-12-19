@@ -20,7 +20,7 @@ class FDSet:
     """表示一组函数依赖集，例如，FDSet({A -> B, B -> C})"""
 
     def __init__(self, fds: list[FD] = []):
-        self.fds = fds
+        self.fds: list[FD] = fds
 
     def implies(self, fd: FD) -> bool:
         """判断当前 FDSet 是否能推出 fd"""
